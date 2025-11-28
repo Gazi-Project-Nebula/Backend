@@ -41,6 +41,23 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 async def read_users_me(current_user: schemas.User = Depends(security.get_current_user)):
     return current_user
 
+@app.post("/votes/", response_model=schemas.VoteReceipt)
+def cast_vote(vote: schemas.VoteCreate, db: Session = Depends(security.get_db), current_user: schemas.User = Depends(security.get_current_user)):
+    # Note: In a real anonymous system, we would check a "VotingToken" here 
+    # instead of just checking the user login, to separate identity from the vote.
+    # For now, we allow any logged-in user to cast a vote.
+    
+    # Check if election is active
+    election = crud.get_election(db, election_id=vote.election_id)
+    if not election or not election.is_active:
+        raise HTTPException(status_code=400, detail="Election is not active")
+
+    # Cast the vote
+    db_vote = crud.cast_vote(db=db, vote=vote)
+    
+    # Return the receipt
+    return {"vote_hash": db_vote.vote_hash, "timestamp": db_vote.created_at}
+
 # The main welcome endpoint.
 @app.get("/")
 def read_root():
