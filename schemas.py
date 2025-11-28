@@ -72,6 +72,7 @@ class Election(ElectionBase):
 class VoteCreate(BaseModel):
     election_id: int
     candidate_id: int
+    token: str
 
 class VoteReceipt(BaseModel):
     vote_hash: str
