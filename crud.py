@@ -1,4 +1,6 @@
 # Contains reusable functions to interact with the database (Create, Read, Update, Delete).
+import hashlib
+import datetime
 from sqlalchemy.orm import Session
 import database, schemas
 from passlib.context import CryptContext
@@ -18,3 +20,36 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.commit()
     db.refresh(db_user)
     return db_user
+
+def create_election(db: Session, election: schemas.ElectionCreate, user_id: int):
+    # 1. Create the Election object
+    db_election = database.Election(
+        title=election.title,
+        description=election.description,
+        start_time=election.start_time,
+        end_time=election.end_time,
+        created_by=user_id
+    )
+    db.add(db_election)
+    db.commit()
+    db.refresh(db_election)
+
+    # 2. Create the Candidate objects linked to this election
+    for candidate in election.candidates:
+        db_candidate = database.Candidate(
+            name=candidate.name,
+            description=candidate.description,
+            election_id=db_election.id
+        )
+        db.add(db_candidate)
+    
+    db.commit()
+    db.refresh(db_election)
+    return db_election
+
+def get_elections(db: Session, skip: int = 0, limit: int = 100):
+    # Fetch all elections to display on the dashboard
+    return db.query(database.Election).offset(skip).limit(limit).all()
+
+def get_election(db: Session, election_id: int):
+    return db.query(database.Election).filter(database.Election.id == election_id).first()
