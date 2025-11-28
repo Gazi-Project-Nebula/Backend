@@ -58,6 +58,10 @@ def cast_vote(vote: schemas.VoteCreate, db: Session = Depends(security.get_db), 
     # Return the receipt
     return {"vote_hash": db_vote.vote_hash, "timestamp": db_vote.created_at}
 
+@app.post("/elections/", response_model=schemas.Election)
+def create_election(election: schemas.ElectionCreate, db: Session = Depends(security.get_db), current_user: schemas.User = Depends(security.get_current_user)):
+    return crud.create_election(db=db, election=election, user_id=current_user.id)
+
 # The main welcome endpoint.
 @app.get("/")
 def read_root():
