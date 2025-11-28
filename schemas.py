@@ -1,7 +1,7 @@
 # Defines the data shapes (schemas) that are used for API requests and responses
 # It helps with data validation and documentation
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 # Schema for the access token response
@@ -19,7 +19,8 @@ class UserBase(BaseModel):
 
 # Schema used when creating a new user. Inherits from UserBase
 class UserCreate(UserBase):
-    password: str
+    # Limit password to 64 characters to stay safely under the 72-byte bcrypt limit
+    password: str = Field(..., min_length=6, max_length=64)
     role: str = "voter"
 
 # Schema for returning user information in API responses (omits password)
