@@ -6,33 +6,44 @@ from main import app
 from database import Base
 from security import get_db
 
-# Use an in-memory SQLite database for fast execution
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL}
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@pytest.fixture(scope="session")
+def db_engine():
+    """
+    Creates a new in-memory SQLite database engine for the test session,
+    creates all tables, and then drops them after the session.
+    """
+    SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    )
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="function")
-def db_session():
-    """Creates a fresh database session for each test."""
-    Base.metadata.create_all(bind=engine)
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(bind=engine)
+def db_session(db_engine):
+    """
+    Creates a new database session for each test.
+    It uses a transaction that is rolled back after the test, ensuring isolation.
+    """
+    connection = db_engine.connect()
+    # Begin a transaction
+    trans = connection.begin()
+    # Create a session that will use the connection's transaction
+    db = Session(bind=connection)
+    yield db
+    # Rollback the transaction to discard any changes made during the test
+    db.close()
+    trans.rollback()
+    connection.close()
 
 @pytest.fixture(scope="function")
 def client(db_session):
-    """Overrides the get_db dependency to use the test database."""
+    """
+    Overrides the 'get_db' dependency to use the isolated test database session.
+    """
     def override_get_db():
-        try:
-            yield db_session
-        finally:
-            db_session.close()
+        yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
