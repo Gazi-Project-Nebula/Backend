@@ -1,7 +1,7 @@
 # Defines the data shapes (schemas) that are used for API requests and responses
 # It helps with data validation and documentation
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 
 # Schema for the access token response
@@ -28,9 +28,7 @@ class User(UserBase):
     id: int
     role: str
 
-    class Config:
-        # Allows the model to be created from database objects
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- ELECTION & CANDIDATE SCHEMAS ---
 
@@ -45,8 +43,7 @@ class Candidate(CandidateBase):
     id: int
     election_id: int
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ElectionBase(BaseModel):
     title: str
@@ -64,8 +61,7 @@ class Election(ElectionBase):
     created_by: int
     candidates: List[Candidate] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- VOTING SCHEMAS ---
 

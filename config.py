@@ -1,5 +1,6 @@
 # Loads configuration settings from a .env file for the application.
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 
 # Defines the application's configuration variables.
 class Settings(BaseSettings):
@@ -8,9 +9,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    class Config:
-        # Specifies the name of the environment file to load.
-        env_file = ".env"
-
+    # Look for the .env file in the same directory as this config file
+    model_config = SettingsConfigDict(env_file=str(Path(__file__).parent / '.env'))
 
 settings = Settings()
+
