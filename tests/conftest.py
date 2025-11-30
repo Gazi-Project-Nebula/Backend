@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from main import app
 from database import Base
 from security import get_db
@@ -48,3 +48,13 @@ def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
+    # Clean up the override after the test
+    del app.dependency_overrides[get_db]
+    
+@pytest.fixture
+def auth_header(client):
+    """Registers a default user and returns valid Authorization headers."""
+    client.post("/users/", json={"username": "admin", "password": "adminpass"})
+    response = client.post("/token", data={"username": "admin", "password": "adminpass"})
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}    
