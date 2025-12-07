@@ -40,7 +40,7 @@ def create_election(db: Session, election: schemas.ElectionCreate, user_id: int)
     for candidate in election.candidates:
         db_candidate = database.Candidate(
             name=candidate.name,
-            description=candidate.description,
+            bio=candidate.bio,
             election_id=db_election.id
         )
         db.add(db_candidate)

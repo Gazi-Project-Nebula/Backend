@@ -68,7 +68,7 @@ def generate_voting_token(election_id: int, db: Session = Depends(security.get_d
 def cast_vote(vote: schemas.VoteCreate, db: Session = Depends(security.get_db)):
     # Check if election is active
     election = crud.get_election(db, election_id=vote.election_id)
-    if not election or not election.is_active:
+    if not election or election.status != "active":
         raise HTTPException(status_code=400, detail="Election is not active")
 
     try:

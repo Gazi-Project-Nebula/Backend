@@ -34,7 +34,7 @@ class User(UserBase):
 
 class CandidateBase(BaseModel):
     name: str
-    description: Optional[str] = None
+    bio: Optional[str] = None
 
 class CandidateCreate(CandidateBase):
     pass
@@ -57,7 +57,7 @@ class ElectionCreate(ElectionBase):
 
 class Election(ElectionBase):
     id: int
-    is_active: bool
+    status: str
     created_by: int
     candidates: List[Candidate] = []
 

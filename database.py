@@ -36,9 +36,9 @@ class Election(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     description = Column(Text)
-    start_time = Column(DateTime)
-    end_time = Column(DateTime)
-    is_active = Column(Boolean, default=True)
+    start_time = Column(DateTime(timezone=True))
+    end_time = Column(DateTime(timezone=True))
+    status = Column(String, default="pending")
     created_by = Column(Integer, ForeignKey("users.id"))
 
     creator = relationship("User", back_populates="elections")
@@ -52,7 +52,7 @@ class Candidate(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    description = Column(Text)
+    bio = Column(Text)
     election_id = Column(Integer, ForeignKey("elections.id"))
 
     election = relationship("Election", back_populates="candidates")
