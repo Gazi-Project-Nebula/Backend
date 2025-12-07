@@ -1,4 +1,9 @@
-def test_create_election(client, auth_header):
+from main import scheduler
+
+def test_create_election(client, auth_header, monkeypatch):
+    # Prevent the scheduler from running jobs during this test
+    monkeypatch.setattr(scheduler, 'add_job', lambda *args, **kwargs: None)
+
     election_data = {
         "title": "Class President",
         "description": "Vote for the best",
@@ -28,3 +33,46 @@ def test_create_election_unauthorized(client):
     }
     response = client.post("/elections/", json=election_data)
     assert response.status_code == 401
+
+import time
+from datetime import datetime, timedelta
+import crud
+
+def test_election_status_change(client, auth_header, db_session):
+    # Using a fixed time in the past to avoid race conditions with the scheduler
+    start_time = datetime.utcnow() - timedelta(minutes=10)
+    end_time = start_time + timedelta(minutes=5)
+
+    election_data = {
+        "title": "Manual Status Change Test",
+        "description": "Testing direct status changes",
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+        "candidates": [{"name": "Candidate 1", "bio": "Bio 1"}]
+    }
+
+    # Create the election
+    response = client.post("/elections/", json=election_data, headers=auth_header)
+    assert response.status_code == 200
+    election_id = response.json()["id"]
+
+    # Check initial status is "pending"
+    response = client.get(f"/elections/{election_id}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+
+    # Manually start the election by calling the crud function
+    crud.start_election(db_session, election_id=election_id)
+
+    # Check for "active" status
+    response = client.get(f"/elections/{election_id}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "active"
+
+    # Manually end the election
+    crud.end_election(db_session, election_id=election_id)
+
+    # Check for "completed" status
+    response = client.get(f"/elections/{election_id}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"

@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from main import app
+from main import app, scheduler
 from database import Base
 from security import get_db
 
@@ -48,7 +48,8 @@ def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
-    # Clean up the override after the test
+    # Clean up the override and scheduled jobs after the test
+    scheduler.remove_all_jobs()
     del app.dependency_overrides[get_db]
     
 @pytest.fixture
