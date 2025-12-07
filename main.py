@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import timedelta, datetime
+from apscheduler.schedulers.background import BackgroundScheduler
+from contextlib import asynccontextmanager
 
 import crud, schemas, security, database
 from config import settings
@@ -9,8 +11,29 @@ from config import settings
 # Create database tables when the application starts
 database.create_db_and_tables()
 
+# --- SCHEDULER ---
+scheduler = BackgroundScheduler()
 
-app = FastAPI()
+def trigger_start_election(election_id: int):
+    db = database.SessionLocal()
+    crud.start_election(db, election_id)
+    db.close()
+
+def trigger_end_election(election_id: int):
+    db = database.SessionLocal()
+    crud.end_election(db, election_id)
+    db.close()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    if not scheduler.running:
+        scheduler.start()
+    yield
+    # Shutdown
+    scheduler.shutdown()
+
+app = FastAPI(lifespan=lifespan)
 
 # Endpoint to create a new user 
 @app.post("/users/", response_model=schemas.User)
@@ -44,7 +67,17 @@ async def read_users_me(current_user: schemas.User = Depends(security.get_curren
 # Endpoint to create a new election
 @app.post("/elections/", response_model=schemas.Election)
 def create_election(election: schemas.ElectionCreate, db: Session = Depends(security.get_db), current_user: schemas.User = Depends(security.get_current_user)):
-    return crud.create_election(db=db, election=election, user_id=current_user.id)
+    db_election = crud.create_election(db=db, election=election, user_id=current_user.id)
+    scheduler.add_job(trigger_start_election, 'date', run_date=db_election.start_time, args=[db_election.id])
+    scheduler.add_job(trigger_end_election, 'date', run_date=db_election.end_time, args=[db_election.id])
+    return db_election
+
+@app.get("/elections/{election_id}", response_model=schemas.Election)
+def read_election(election_id: int, db: Session = Depends(security.get_db)):
+    db_election = crud.get_election(db, election_id=election_id)
+    if db_election is None:
+        raise HTTPException(status_code=404, detail="Election not found")
+    return db_election
 
 # 1. Add this NEW endpoint to generate tokens
 @app.post("/elections/{election_id}/token")

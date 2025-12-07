@@ -138,3 +138,19 @@ def cast_vote(db: Session, vote: schemas.VoteCreate):
     db.refresh(db_vote)
     
     return db_vote
+
+def start_election(db: Session, election_id: int):
+    db_election = get_election(db, election_id)
+    if db_election:
+        db_election.status = "active"
+        db.commit()
+        db.refresh(db_election)
+    return db_election
+
+def end_election(db: Session, election_id: int):
+    db_election = get_election(db, election_id)
+    if db_election:
+        db_election.status = "completed"
+        db.commit()
+        db.refresh(db_election)
+    return db_election
