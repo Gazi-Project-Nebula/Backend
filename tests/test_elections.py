@@ -5,8 +5,8 @@ def test_create_election(client, auth_header):
         "start_time": "2025-01-01T09:00:00",
         "end_time": "2025-01-02T17:00:00",
         "candidates": [
-            {"name": "Alice", "description": "Hardworking"},
-            {"name": "Bob", "description": "Creative"}
+            {"name": "Alice", "bio": "Hardworking"},
+            {"name": "Bob", "bio": "Creative"}
         ]
     }
     
@@ -14,6 +14,7 @@ def test_create_election(client, auth_header):
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == "Class President"
+    assert data["status"] == "pending"
     assert len(data["candidates"]) == 2
     assert data["candidates"][0]["name"] == "Alice"
 
