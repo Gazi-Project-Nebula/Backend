@@ -73,12 +73,54 @@ def create_election(election: schemas.ElectionCreate, db: Session = Depends(secu
         scheduler.add_job(trigger_end_election, 'date', run_date=db_election.end_time, args=[db_election.id])
     return db_election
 
+from typing import List
+...
 @app.get("/elections/{election_id}", response_model=schemas.Election)
 def read_election(election_id: int, db: Session = Depends(security.get_db)):
     db_election = crud.get_election(db, election_id=election_id)
     if db_election is None:
         raise HTTPException(status_code=404, detail="Election not found")
     return db_election
+
+# --- Candidate Management Endpoints ---
+
+@app.post("/elections/{election_id}/candidates", response_model=schemas.Candidate)
+def create_candidate_for_election(
+    election_id: int,
+    candidate: schemas.CandidateCreate,
+    db: Session = Depends(security.get_db),
+    election: database.Election = Depends(security.verify_election_manager)
+):
+    return crud.create_candidate(db=db, candidate=candidate, election_id=election_id)
+
+@app.get("/elections/{election_id}/candidates", response_model=List[schemas.Candidate])
+def read_candidates_for_election(
+    election_id: int, 
+    db: Session = Depends(security.get_db),
+    current_user: schemas.User = Depends(security.get_current_user)
+):
+    return crud.get_candidates_by_election(db=db, election_id=election_id)
+
+@app.put("/candidates/{candidate_id}", response_model=schemas.Candidate)
+def update_candidate_details(
+    candidate_id: int,
+    candidate_update: schemas.CandidateUpdate,
+    db: Session = Depends(security.get_db),
+    candidate: database.Candidate = Depends(security.verify_candidate_election_manager)
+):
+    return crud.update_candidate(db=db, candidate_id=candidate_id, candidate=candidate_update)
+
+from fastapi import Response
+...
+@app.delete("/candidates/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_candidate_from_election(
+    candidate_id: int,
+    db: Session = Depends(security.get_db),
+    candidate: database.Candidate = Depends(security.verify_candidate_election_manager)
+):
+    crud.delete_candidate(db=db, candidate_id=candidate_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 # 1. Add this NEW endpoint to generate tokens
 @app.post("/elections/{election_id}/token")

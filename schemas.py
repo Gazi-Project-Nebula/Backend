@@ -39,6 +39,10 @@ class CandidateBase(BaseModel):
 class CandidateCreate(CandidateBase):
     pass
 
+class CandidateUpdate(BaseModel):
+    name: Optional[str] = None
+    bio: Optional[str] = None
+
 class Candidate(CandidateBase):
     id: int
     election_id: int

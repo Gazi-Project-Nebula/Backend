@@ -59,3 +59,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     if user is None:
         raise credentials_exception
     return user
+
+def verify_election_manager(election_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    election = crud.get_election(db, election_id)
+    if not election:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Election not found")
+    if election.created_by != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to manage this election")
+    return election
+
+def verify_candidate_election_manager(candidate_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    candidate = crud.get_candidate(db, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    
+    election = crud.get_election(db, candidate.election_id)
+    if not election:
+        # This case should ideally not happen if database integrity is maintained
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Election not found for this candidate")
+        
+    if election.created_by != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to manage this election's candidates")
+    return candidate

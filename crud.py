@@ -154,3 +154,33 @@ def end_election(db: Session, election_id: int):
         db.commit()
         db.refresh(db_election)
     return db_election
+
+def create_candidate(db: Session, candidate: schemas.CandidateCreate, election_id: int):
+    db_candidate = database.Candidate(**candidate.model_dump(), election_id=election_id)
+    db.add(db_candidate)
+    db.commit()
+    db.refresh(db_candidate)
+    return db_candidate
+
+def get_candidates_by_election(db: Session, election_id: int):
+    return db.query(database.Candidate).filter(database.Candidate.election_id == election_id).all()
+
+def get_candidate(db: Session, candidate_id: int):
+    return db.query(database.Candidate).filter(database.Candidate.id == candidate_id).first()
+
+def update_candidate(db: Session, candidate_id: int, candidate: schemas.CandidateUpdate):
+    db_candidate = get_candidate(db, candidate_id)
+    if db_candidate:
+        update_data = candidate.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_candidate, key, value)
+        db.commit()
+        db.refresh(db_candidate)
+    return db_candidate
+
+def delete_candidate(db: Session, candidate_id: int):
+    db_candidate = get_candidate(db, candidate_id)
+    if db_candidate:
+        db.delete(db_candidate)
+        db.commit()
+    return None
