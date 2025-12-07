@@ -68,8 +68,9 @@ async def read_users_me(current_user: schemas.User = Depends(security.get_curren
 @app.post("/elections/", response_model=schemas.Election)
 def create_election(election: schemas.ElectionCreate, db: Session = Depends(security.get_db), current_user: schemas.User = Depends(security.get_current_user)):
     db_election = crud.create_election(db=db, election=election, user_id=current_user.id)
-    scheduler.add_job(trigger_start_election, 'date', run_date=db_election.start_time, args=[db_election.id])
-    scheduler.add_job(trigger_end_election, 'date', run_date=db_election.end_time, args=[db_election.id])
+    if db_election.start_time and db_election.end_time:
+        scheduler.add_job(trigger_start_election, 'date', run_date=db_election.start_time, args=[db_election.id])
+        scheduler.add_job(trigger_end_election, 'date', run_date=db_election.end_time, args=[db_election.id])
     return db_election
 
 @app.get("/elections/{election_id}", response_model=schemas.Election)

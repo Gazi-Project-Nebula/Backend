@@ -48,8 +48,8 @@ class Candidate(CandidateBase):
 class ElectionBase(BaseModel):
     title: str
     description: Optional[str] = None
-    start_time: datetime
-    end_time: datetime
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
 
 class ElectionCreate(ElectionBase):
     # The user sends a list of candidates when creating an election

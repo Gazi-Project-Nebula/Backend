@@ -2,9 +2,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from main import app, scheduler
+import main
 from database import Base
 from security import get_db
+from apscheduler.schedulers.background import BackgroundScheduler
 
 @pytest.fixture(scope="session")
 def db_engine():
@@ -41,16 +42,23 @@ def db_session(db_engine):
 def client(db_session):
     """
     Overrides the 'get_db' dependency to use the isolated test database session.
+    It also creates a fresh scheduler for each test. The app's lifespan manager
+    is responsible for starting and stopping it.
     """
+    # Monkeypatch the scheduler in the main module for this test run
+    main.scheduler = BackgroundScheduler()
+
     def override_get_db():
         yield db_session
 
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
+    main.app.dependency_overrides[get_db] = override_get_db
+    
+    # The TestClient will manage the app's lifespan, which starts and stops the scheduler.
+    with TestClient(main.app) as c:
         yield c
-    # Clean up the override and scheduled jobs after the test
-    scheduler.remove_all_jobs()
-    del app.dependency_overrides[get_db]
+    
+    # Cleanup the dependency override
+    del main.app.dependency_overrides[get_db]
     
 @pytest.fixture
 def auth_header(client):
@@ -58,4 +66,5 @@ def auth_header(client):
     client.post("/users/", json={"username": "admin", "password": "adminpass"})
     response = client.post("/token", data={"username": "admin", "password": "adminpass"})
     token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}    
+    return {"Authorization": f"Bearer {token}"}
+    

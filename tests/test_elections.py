@@ -1,9 +1,5 @@
-from main import scheduler
 
 def test_create_election(client, auth_header, monkeypatch):
-    # Prevent the scheduler from running jobs during this test
-    monkeypatch.setattr(scheduler, 'add_job', lambda *args, **kwargs: None)
-
     election_data = {
         "title": "Class President",
         "description": "Vote for the best",
@@ -76,3 +72,20 @@ def test_election_status_change(client, auth_header, db_session):
     response = client.get(f"/elections/{election_id}")
     assert response.status_code == 200
     assert response.json()["status"] == "completed"
+
+def test_create_election_no_schedule(client, auth_header):
+    election_data = {
+        "title": "Unscheduled Election",
+        "description": "This election is not scheduled",
+        "candidates": [
+            {"name": "Candidate A", "bio": "Bio A"},
+        ]
+    }
+    
+    response = client.post("/elections/", json=election_data, headers=auth_header)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Unscheduled Election"
+    assert data["status"] == "pending"
+    assert data["start_time"] is None
+    assert data["end_time"] is None

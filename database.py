@@ -36,8 +36,8 @@ class Election(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     description = Column(Text)
-    start_time = Column(DateTime(timezone=True))
-    end_time = Column(DateTime(timezone=True))
+    start_time = Column(DateTime(timezone=True), nullable=True)
+    end_time = Column(DateTime(timezone=True), nullable=True)
     status = Column(String, default="pending")
     created_by = Column(Integer, ForeignKey("users.id"))
 
