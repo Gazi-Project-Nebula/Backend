@@ -55,7 +55,7 @@ def create_election(db: Session, election: schemas.ElectionCreate, user_id: int)
             token_hash=hashed_token,
             election_id=db_election.id,
             user_id=user.id,
-            expires_at=election.end_time if election.end_time else datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+            expires_at=election.end_time if election.end_time else datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
         )
         db.add(db_token)
     
@@ -93,7 +93,7 @@ def create_voting_token(db: Session, user_id: int, election_id: int):
         token_hash=hashed_token,
         election_id=election_id,
         user_id=user_id,
-        expires_at=datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+        expires_at=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
     )
     db.add(db_token)
     db.commit()
@@ -113,7 +113,7 @@ def cast_vote(db: Session, vote: schemas.VoteCastRequest):
         raise ValueError("Voting token not found for this user and election.")
     if db_token.is_used:
         raise ValueError("Double Vote: This token has already been used.")
-    if db_token.expires_at < datetime.datetime.utcnow():
+    if db_token.expires_at < datetime.datetime.now(datetime.timezone.utc):
         raise ValueError("Token has expired.")
 
     # 2. Mark token as used (Burn Token)
@@ -131,7 +131,7 @@ def cast_vote(db: Session, vote: schemas.VoteCastRequest):
         # Requirement: Genesis hash for the first vote
         prev_hash = "GENESIS"
 
-    timestamp = datetime.datetime.utcnow().isoformat()
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     
     # 4. Create Hash: SHA256(prev_hash + user_id + candidate_id + timestamp)
     data_to_hash = f"{prev_hash}{vote.user_id}{vote.candidate_id}{timestamp}"
@@ -143,7 +143,7 @@ def cast_vote(db: Session, vote: schemas.VoteCastRequest):
         prev_vote_hash=prev_hash,
         election_id=vote.election_id,
         candidate_id=vote.candidate_id,
-        created_at=datetime.datetime.utcnow()
+        created_at=datetime.datetime.now(datetime.timezone.utc)
     )
     db.add(db_vote)
     

@@ -26,12 +26,12 @@ def test_create_election_unauthorized(client):
     assert response.status_code == 401
 
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import crud
 
 def test_election_status_change(client, auth_header, db_session):
     # Using a fixed time in the past to avoid race conditions with the scheduler
-    start_time = datetime.utcnow() - timedelta(minutes=10)
+    start_time = datetime.now(timezone.utc) - timedelta(minutes=10)
     end_time = start_time + timedelta(minutes=5)
 
     election_data = {

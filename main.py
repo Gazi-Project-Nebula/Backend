@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
 
@@ -99,7 +99,7 @@ def create_election(
     internal_election = schemas.ElectionCreate(
         title=election_request.title,
         description=election_request.description,
-        start_time=datetime.utcnow(), # Default start time to now
+        start_time=datetime.now(timezone.utc), # Default start time to now
         end_time=election_request.end_time,
         candidates=candidate_objects
     )

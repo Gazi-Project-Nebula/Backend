@@ -24,7 +24,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     role = Column(String, default="voter")  # Roles can be 'admin' or 'voter'
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
     
     elections = relationship("Election", back_populates="creator")
     tokens = relationship("VotingToken", back_populates="user")
@@ -65,7 +65,7 @@ class VotingToken(Base):
     id = Column(Integer, primary_key=True, index=True)
     token_hash = Column(String, unique=True, index=True)
     is_used = Column(Boolean, default=False)
-    expires_at = Column(DateTime)
+    expires_at = Column(DateTime(timezone=True))
     election_id = Column(Integer, ForeignKey("elections.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
 
@@ -79,7 +79,7 @@ class Vote(Base):
     id = Column(Integer, primary_key=True, index=True)
     vote_hash = Column(String, unique=True, index=True) # A receipt for the voter
     prev_vote_hash = Column(String) # For the tamper-evident chain
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
     election_id = Column(Integer, ForeignKey("elections.id"))
     candidate_id = Column(Integer, ForeignKey("candidates.id"))
 
