@@ -1,33 +1,28 @@
+import database
 
 def test_create_election(client, auth_header, monkeypatch):
     election_data = {
         "title": "Class President",
         "description": "Vote for the best",
-        "start_time": "2025-01-01T09:00:00",
         "end_time": "2025-01-02T17:00:00",
-        "candidates": [
-            {"name": "Alice", "bio": "Hardworking"},
-            {"name": "Bob", "bio": "Creative"}
-        ]
+        "candidate_names": ["Alice", "Bob"],
+        "creator_id": 1
     }
     
-    response = client.post("/elections/", json=election_data, headers=auth_header)
-    assert response.status_code == 200
+    response = client.post("/api/elections", json=election_data, headers=auth_header)
+    assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "Class President"
-    assert data["status"] == "pending"
-    assert len(data["candidates"]) == 2
-    assert data["candidates"][0]["name"] == "Alice"
+    assert data["success"] is True
+    assert "Election created" in data["message"]
 
 def test_create_election_unauthorized(client):
     """Ensure anonymous users cannot create elections."""
     election_data = {
         "title": "Illegal Election",
-        "start_time": "2025-01-01T09:00:00",
         "end_time": "2025-01-02T17:00:00",
-        "candidates": []
+        "candidate_names": []
     }
-    response = client.post("/elections/", json=election_data)
+    response = client.post("/api/elections", json=election_data)
     assert response.status_code == 401
 
 import time
@@ -42,18 +37,20 @@ def test_election_status_change(client, auth_header, db_session):
     election_data = {
         "title": "Manual Status Change Test",
         "description": "Testing direct status changes",
-        "start_time": start_time.isoformat(),
         "end_time": end_time.isoformat(),
-        "candidates": [{"name": "Candidate 1", "bio": "Bio 1"}]
+        "candidate_names": ["Candidate 1"]
     }
 
     # Create the election
-    response = client.post("/elections/", json=election_data, headers=auth_header)
-    assert response.status_code == 200
-    election_id = response.json()["id"]
+    response = client.post("/api/elections", json=election_data, headers=auth_header)
+    assert response.status_code == 201
+    
+    # Fetch ID from DB since API doesn't return it anymore
+    election = db_session.query(database.Election).filter(database.Election.title == "Manual Status Change Test").first()
+    election_id = election.id
 
     # Check initial status is "pending"
-    response = client.get(f"/elections/{election_id}")
+    response = client.get(f"/api/elections/{election_id}")
     assert response.status_code == 200
     assert response.json()["status"] == "pending"
 
@@ -61,7 +58,7 @@ def test_election_status_change(client, auth_header, db_session):
     crud.start_election(db_session, election_id=election_id)
 
     # Check for "active" status
-    response = client.get(f"/elections/{election_id}")
+    response = client.get(f"/api/elections/{election_id}")
     assert response.status_code == 200
     assert response.json()["status"] == "active"
 
@@ -69,7 +66,7 @@ def test_election_status_change(client, auth_header, db_session):
     crud.end_election(db_session, election_id=election_id)
 
     # Check for "completed" status
-    response = client.get(f"/elections/{election_id}")
+    response = client.get(f"/api/elections/{election_id}")
     assert response.status_code == 200
     assert response.json()["status"] == "completed"
 
@@ -77,15 +74,10 @@ def test_create_election_no_schedule(client, auth_header):
     election_data = {
         "title": "Unscheduled Election",
         "description": "This election is not scheduled",
-        "candidates": [
-            {"name": "Candidate A", "bio": "Bio A"},
-        ]
+        "candidate_names": ["Candidate A"]
     }
     
-    response = client.post("/elections/", json=election_data, headers=auth_header)
-    assert response.status_code == 200
+    response = client.post("/api/elections", json=election_data, headers=auth_header)
+    assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "Unscheduled Election"
-    assert data["status"] == "pending"
-    assert data["start_time"] is None
-    assert data["end_time"] is None
+    assert data["success"] is True
