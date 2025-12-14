@@ -102,29 +102,25 @@ def create_voting_token(db: Session, user_id: int, election_id: int):
 
 # --- UPDATED VOTING FUNCTION ---
 
-def cast_vote(db: Session, vote: schemas.VoteCreate):
-    # 1. Hash the incoming token to match it against the database
-    token_hash = hashlib.sha256(vote.token.encode()).hexdigest()
-    
-    # 2. Find the token in the DB
+def cast_vote(db: Session, vote: schemas.VoteCastRequest):
+    # 1. Validate Token: Query voting_tokens where user_id = ? AND election_id = ?
     db_token = db.query(database.VotingToken).filter(
-        database.VotingToken.token_hash == token_hash,
+        database.VotingToken.user_id == vote.user_id,
         database.VotingToken.election_id == vote.election_id
     ).first()
 
-    # 3. Validate Token
     if not db_token:
-        raise ValueError("Invalid voting token.")
+        raise ValueError("Voting token not found for this user and election.")
     if db_token.is_used:
-        raise ValueError("This token has already been used.")
+        raise ValueError("Double Vote: This token has already been used.")
     if db_token.expires_at < datetime.datetime.utcnow():
         raise ValueError("Token has expired.")
 
-    # 4. Mark token as used (This prevents double voting!)
+    # 2. Mark token as used (Burn Token)
     db_token.is_used = True
     db.add(db_token) # Stage the update
 
-    # 5. Create the Vote (Same hash-chain logic as before)
+    # 3. Blockchain Logic (Get Previous Hash)
     last_vote = db.query(database.Vote).filter(
         database.Vote.election_id == vote.election_id
     ).order_by(desc(database.Vote.id)).first()
@@ -136,10 +132,12 @@ def cast_vote(db: Session, vote: schemas.VoteCreate):
         prev_hash = "GENESIS"
 
     timestamp = datetime.datetime.utcnow().isoformat()
-    # Requirement: SHA-256(prev_hash + user_id + candidate_id + timestamp)
-    data_to_hash = f"{prev_hash}{db_token.user_id}{vote.candidate_id}{timestamp}"
+    
+    # 4. Create Hash: SHA256(prev_hash + user_id + candidate_id + timestamp)
+    data_to_hash = f"{prev_hash}{vote.user_id}{vote.candidate_id}{timestamp}"
     vote_hash = hashlib.sha256(data_to_hash.encode()).hexdigest()
 
+    # 5. Commit Vote
     db_vote = database.Vote(
         vote_hash=vote_hash,
         prev_vote_hash=prev_hash,
@@ -149,7 +147,7 @@ def cast_vote(db: Session, vote: schemas.VoteCreate):
     )
     db.add(db_vote)
     
-    # 6. Commit both the "Token Used" and "Vote Cast" changes together (Atomic Transaction)
+    # 6. Commit both changes together (Atomic Transaction)
     db.commit()
     db.refresh(db_vote)
     

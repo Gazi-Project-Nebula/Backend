@@ -64,6 +64,14 @@ class ElectionCreate(ElectionBase):
     # The user sends a list of candidates when creating an election
     candidates: List[CandidateCreate]
 
+# NEW: Schema for the specific API request (POST /api/elections)
+class ElectionCreateRequest(BaseModel):
+    title: str
+    description: Optional[str] = None
+    end_time: Optional[datetime] = None
+    candidate_names: List[str]
+    creator_id: Optional[int] = None
+
 class Election(ElectionBase):
     id: int
     status: str
@@ -78,6 +86,11 @@ class VoteCreate(BaseModel):
     election_id: int
     candidate_id: int
     token: str
+
+class VoteCastRequest(BaseModel):
+    election_id: int
+    candidate_id: int
+    user_id: int
 
 class VoteReceipt(BaseModel):
     vote_hash: str
