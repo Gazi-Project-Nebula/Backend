@@ -3,7 +3,7 @@ import hashlib
 import datetime
 import secrets
 from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import database, schemas
 from passlib.context import CryptContext
 
@@ -45,16 +45,31 @@ def create_election(db: Session, election: schemas.ElectionCreate, user_id: int)
         )
         db.add(db_candidate)
     
+    # 3. Generate Voting Tokens for ALL users (Requirement: Token System)
+    # Admin seçim oluşturduğunda, her kullanıcı için otomatik token üretilir.
+    users = db.query(database.User).all()
+    for user in users:
+        raw_token = secrets.token_urlsafe(16)
+        hashed_token = hashlib.sha256(raw_token.encode()).hexdigest()
+        db_token = database.VotingToken(
+            token_hash=hashed_token,
+            election_id=db_election.id,
+            user_id=user.id,
+            expires_at=election.end_time if election.end_time else datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+        )
+        db.add(db_token)
+    
     db.commit()
     db.refresh(db_election)
     return db_election
 
 def get_elections(db: Session, skip: int = 0, limit: int = 100):
     # Fetch all elections to display on the dashboard
-    return db.query(database.Election).offset(skip).limit(limit).all()
+    # Requirement: Must return candidates as a nested array
+    return db.query(database.Election).options(joinedload(database.Election.candidates)).offset(skip).limit(limit).all()
 
 def get_election(db: Session, election_id: int):
-    return db.query(database.Election).filter(database.Election.id == election_id).first()
+    return db.query(database.Election).options(joinedload(database.Election.candidates)).filter(database.Election.id == election_id).first()
 
 def create_voting_token(db: Session, user_id: int, election_id: int):
     # 1. Check if user already has a token (Prevent double voting requests)
@@ -117,11 +132,12 @@ def cast_vote(db: Session, vote: schemas.VoteCreate):
     if last_vote:
         prev_hash = last_vote.vote_hash
     else:
-        prev_hash = hashlib.sha256(str(vote.election_id).encode()).hexdigest()
+        # Requirement: Genesis hash for the first vote
+        prev_hash = "GENESIS"
 
     timestamp = datetime.datetime.utcnow().isoformat()
-    # Note: We do NOT include user_id in the hash. The vote is anonymous.
-    data_to_hash = f"{prev_hash}{vote.candidate_id}{vote.election_id}{timestamp}"
+    # Requirement: SHA-256(prev_hash + user_id + candidate_id + timestamp)
+    data_to_hash = f"{prev_hash}{db_token.user_id}{vote.candidate_id}{timestamp}"
     vote_hash = hashlib.sha256(data_to_hash.encode()).hexdigest()
 
     db_vote = database.Vote(

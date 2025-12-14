@@ -59,6 +59,18 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+# NEW Endpoint: Login per requirements
+# Authenticates a user and returns the User object
+@app.post("/api/auth/login", response_model=schemas.User)
+def login(user_credentials: schemas.UserLogin, db: Session = Depends(security.get_db)):
+    user = crud.get_user_by_username(db, username=user_credentials.username)
+    if not user or not security.verify_password(user_credentials.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password"
+        )
+    return user
+
 # A protected endpoint that shows information about the current logged-in user.
 @app.get("/users/me/", response_model=schemas.User)
 async def read_users_me(current_user: schemas.User = Depends(security.get_current_user)):

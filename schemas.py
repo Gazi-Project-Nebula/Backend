@@ -23,6 +23,11 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=6, max_length=64)
     role: str = "voter"
 
+# Schema for Login request body
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
 # Schema for returning user information in API responses (omits password)
 class User(UserBase):
     id: int
