@@ -35,6 +35,10 @@ class User(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
 # --- ELECTION & CANDIDATE SCHEMAS ---
 
 class CandidateBase(BaseModel):

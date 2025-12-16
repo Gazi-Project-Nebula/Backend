@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta, datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
+from typing import List
 
 import crud, schemas, security, database
 from config import settings
@@ -85,6 +86,44 @@ def register(user: schemas.UserCreate, db: Session = Depends(security.get_db)):
 @app.get("/users/me/", response_model=schemas.User)
 async def read_users_me(current_user: schemas.User = Depends(security.get_current_user)):
     return current_user
+
+
+@app.get("/api/users", response_model=List[schemas.User])
+def read_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(security.get_db),
+    current_user: schemas.User = Depends(security.verify_admin_user),
+):
+    users = crud.get_users(db, skip=skip, limit=limit)
+    return users
+
+
+@app.put("/api/users/{user_id}/role", response_model=schemas.User)
+def update_user_role(
+    user_id: int,
+    user_role: schemas.UserRoleUpdate,
+    db: Session = Depends(security.get_db),
+    current_user: schemas.User = Depends(security.verify_admin_user),
+):
+    db_user = crud.get_user(db, user_id=user_id)
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return crud.update_user_role(db=db, user_id=user_id, role=user_role.role)
+
+
+@app.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(security.get_db),
+    current_user: schemas.User = Depends(security.verify_admin_user),
+):
+    db_user = crud.get_user(db, user_id=user_id)
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    crud.delete_user(db=db, user_id=user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 # Endpoint to create a new election
 @app.post("/api/elections", status_code=status.HTTP_201_CREATED)

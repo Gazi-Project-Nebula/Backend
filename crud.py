@@ -14,6 +14,33 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def get_user_by_username(db: Session, username: str):
     return db.query(database.User).filter(database.User.username == username).first()
 
+
+def get_user(db: Session, user_id: int):
+    return db.query(database.User).filter(database.User.id == user_id).first()
+
+
+def get_users(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(database.User).offset(skip).limit(limit).all()
+
+
+def update_user_role(db: Session, user_id: int, role: str):
+    db_user = get_user(db, user_id)
+    if db_user:
+        db_user.role = role
+        db.commit()
+        db.refresh(db_user)
+    return db_user
+
+
+def delete_user(db: Session, user_id: int):
+    db_user = get_user(db, user_id)
+    if db_user:
+        db.delete(db_user)
+        db.commit()
+    return db_user
+
+
+
 # Creates a new user in the database with a hashed password.
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = pwd_context.hash(user.password)
