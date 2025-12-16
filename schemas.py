@@ -80,6 +80,12 @@ class Election(ElectionBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+class ElectionUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+
 # --- VOTING SCHEMAS ---
 
 class VoteCreate(BaseModel):

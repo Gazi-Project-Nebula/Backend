@@ -81,3 +81,15 @@ def verify_candidate_election_manager(candidate_id: int, db: Session = Depends(g
     if election.created_by != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to manage this election's candidates")
     return candidate
+
+async def verify_admin_user(current_user: schemas.User = Depends(get_current_user)):
+    """
+    Dependency to verify that the current user is an admin.
+    Raises a 403 Forbidden error if the user is not an admin.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation not permitted. Admin privileges required."
+        )
+    return current_user

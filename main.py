@@ -112,13 +112,38 @@ def create_election(
         
     return {"success": True, "message": "Election created and tokens distributed to all users."}
 
-from typing import List
-
 # NEW Endpoint: Get All Elections
 @app.get("/api/elections", response_model=List[schemas.Election])
 def read_elections(skip: int = 0, limit: int = 100, db: Session = Depends(security.get_db)):
     return crud.get_elections(db, skip=skip, limit=limit)
-...
+
+
+@app.put("/api/elections/{election_id}", response_model=schemas.Election)
+def update_election(
+    election_id: int,
+    election: schemas.ElectionUpdate,
+    db: Session = Depends(security.get_db),
+    current_user: schemas.User = Depends(security.verify_admin_user),
+):
+    db_election = crud.get_election(db, election_id=election_id)
+    if db_election is None:
+        raise HTTPException(status_code=404, detail="Election not found")
+    return crud.update_election(db=db, election_id=election_id, election=election)
+
+
+@app.delete("/api/elections/{election_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_election(
+    election_id: int,
+    db: Session = Depends(security.get_db),
+    current_user: schemas.User = Depends(security.verify_admin_user),
+):
+    db_election = crud.get_election(db, election_id=election_id)
+    if db_election is None:
+        raise HTTPException(status_code=404, detail="Election not found")
+    crud.delete_election(db=db, election_id=election_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.get("/api/elections/{election_id}", response_model=schemas.Election)
 def read_election(election_id: int, db: Session = Depends(security.get_db)):
     db_election = crud.get_election(db, election_id=election_id)
@@ -154,8 +179,6 @@ def update_candidate_details(
 ):
     return crud.update_candidate(db=db, candidate_id=candidate_id, candidate=candidate_update)
 
-from fastapi import Response
-...
 @app.delete("/candidates/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_candidate_from_election(
     candidate_id: int,

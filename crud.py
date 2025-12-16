@@ -169,6 +169,25 @@ def end_election(db: Session, election_id: int):
         db.refresh(db_election)
     return db_election
 
+
+def update_election(db: Session, election_id: int, election: schemas.ElectionUpdate):
+    db_election = get_election(db, election_id)
+    if db_election:
+        update_data = election.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_election, key, value)
+        db.commit()
+        db.refresh(db_election)
+    return db_election
+
+
+def delete_election(db: Session, election_id: int):
+    db_election = get_election(db, election_id)
+    if db_election:
+        db.delete(db_election)
+        db.commit()
+    return db_election
+
 def create_candidate(db: Session, candidate: schemas.CandidateCreate, election_id: int):
     db_candidate = database.Candidate(**candidate.model_dump(), election_id=election_id)
     db.add(db_candidate)
