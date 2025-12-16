@@ -4,7 +4,7 @@ def test_create_election(client, auth_header, monkeypatch):
     election_data = {
         "title": "Class President",
         "description": "Vote for the best",
-        "end_time": "2025-01-02T17:00:00",
+        "end_time": "2025-01-02T17:00:00Z",
         "candidate_names": ["Alice", "Bob"],
         "creator_id": 1
     }
@@ -19,7 +19,7 @@ def test_create_election_unauthorized(client):
     """Ensure anonymous users cannot create elections."""
     election_data = {
         "title": "Illegal Election",
-        "end_time": "2025-01-02T17:00:00",
+        "end_time": "2025-01-02T17:00:00Z",
         "candidate_names": []
     }
     response = client.post("/api/elections", json=election_data)
