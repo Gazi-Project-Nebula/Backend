@@ -95,3 +95,17 @@ class VoteCastRequest(BaseModel):
 class VoteReceipt(BaseModel):
     vote_hash: str
     timestamp: datetime
+
+
+# --- RESULT SCHEMAS ---
+
+class CandidateResult(BaseModel):
+    id: int
+    name: str
+    vote_count: int
+
+class ElectionResult(BaseModel):
+    id: int
+    title: str
+    status: str
+    results: List[CandidateResult]

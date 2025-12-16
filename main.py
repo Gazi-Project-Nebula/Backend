@@ -207,3 +207,30 @@ def cast_vote(vote: schemas.VoteCastRequest, db: Session = Depends(security.get_
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Secure E-Voting API"}
+
+# NEW Endpoint: Get Election Results
+@app.get("/api/elections/{election_id}/results", response_model=schemas.ElectionResult)
+def get_election_results(
+    election_id: int, 
+    db: Session = Depends(security.get_db),
+    current_user: schemas.User = Depends(security.get_current_user)
+):
+    # 1. Fetch the election
+    db_election = crud.get_election(db, election_id=election_id)
+    if not db_election:
+        raise HTTPException(status_code=404, detail="Election not found")
+
+    # 2. Check if the election is completed
+    # if db_election.status != "completed":
+    #     raise HTTPException(status_code=400, detail="Election results are not yet available.")
+
+    # 3. Calculate results
+    results = crud.get_election_results(db, election_id=election_id)
+    
+    # 4. Format the final response
+    return schemas.ElectionResult(
+        id=db_election.id,
+        title=db_election.title,
+        status=db_election.status,
+        results=[schemas.CandidateResult(id=r['id'], name=r['name'], vote_count=r['vote_count']) for r in results]
+    )

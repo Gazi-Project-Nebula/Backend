@@ -198,3 +198,28 @@ def delete_candidate(db: Session, candidate_id: int):
         db.delete(db_candidate)
         db.commit()
     return None
+
+def get_election_results(db: Session, election_id: int):
+    """
+    Calculates the results of a given election by counting votes for each candidate.
+    """
+    from sqlalchemy import func
+
+    # Query to count votes for each candidate in the specified election
+    results = (
+        db.query(
+            database.Candidate.id,
+            database.Candidate.name,
+            func.count(database.Vote.id).label("vote_count"),
+        )
+        .outerjoin(database.Vote, database.Candidate.id == database.Vote.candidate_id)
+        .filter(database.Candidate.election_id == election_id)
+        .group_by(database.Candidate.id, database.Candidate.name)
+        .order_by(func.count(database.Vote.id).desc())
+        .all()
+    )
+
+    # Format the results into the desired dictionary structure
+    return [
+        {"id": r.id, "name": r.name, "vote_count": r.vote_count} for r in results
+    ]
