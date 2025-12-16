@@ -1,6 +1,7 @@
 # Handles all database setup and defines the structure of the tables (the schema).
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+from sqlalchemy.types import TypeDecorator
 import datetime
 from config import settings
 
@@ -13,6 +14,30 @@ engine = create_engine(settings.DATABASE_URL
 # A SessionLocal class is a factory for creating new database sessions.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Custom TypeDecorator for timezone-aware DateTime
+class AwareDateTime(TypeDecorator):
+    """
+    A custom TypeDecorator for SQLAlchemy DateTime columns that handles timezone
+    awareness for SQLite. It stores datetimes as naive UTC in the database
+    and converts them to timezone-aware UTC upon retrieval.
+    """
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            if value.tzinfo is None:
+                raise ValueError("Cannot store naive datetime. Must be timezone-aware.")
+            # Convert to UTC and remove timezone info for storage
+            return value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            # Assume stored value is UTC and make it timezone-aware
+            return value.replace(tzinfo=datetime.timezone.utc)
+        return value
+
 # Base is a class that all our database models will inherit from.
 Base = declarative_base()
 
@@ -24,7 +49,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     role = Column(String, default="voter")  # Roles can be 'admin' or 'voter'
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    created_at = Column(AwareDateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     
     elections = relationship("Election", back_populates="creator")
     tokens = relationship("VotingToken", back_populates="user")
@@ -36,8 +61,8 @@ class Election(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     description = Column(Text)
-    start_time = Column(DateTime(timezone=True), nullable=True)
-    end_time = Column(DateTime(timezone=True), nullable=True)
+    start_time = Column(AwareDateTime, nullable=True)
+    end_time = Column(AwareDateTime, nullable=True)
     status = Column(String, default="pending")
     created_by = Column(Integer, ForeignKey("users.id"))
 
@@ -65,7 +90,7 @@ class VotingToken(Base):
     id = Column(Integer, primary_key=True, index=True)
     token_hash = Column(String, unique=True, index=True)
     is_used = Column(Boolean, default=False)
-    expires_at = Column(DateTime(timezone=True))
+    expires_at = Column(AwareDateTime)
     election_id = Column(Integer, ForeignKey("elections.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
 
@@ -79,7 +104,7 @@ class Vote(Base):
     id = Column(Integer, primary_key=True, index=True)
     vote_hash = Column(String, unique=True, index=True) # A receipt for the voter
     prev_vote_hash = Column(String) # For the tamper-evident chain
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    created_at = Column(AwareDateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     election_id = Column(Integer, ForeignKey("elections.id"))
     candidate_id = Column(Integer, ForeignKey("candidates.id"))
 
