@@ -6,10 +6,14 @@ import datetime
 from config import settings
 
 # The database engine connects to the database specified in the config.
-engine = create_engine(settings.DATABASE_URL
-                       #for SQLite use the line below instead
-                       #, connect_args={"check_same_thread": False}
-                       )
+connect_args = {}
+if "sqlite" in settings.DATABASE_URL:
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(
+    settings.DATABASE_URL,
+    connect_args=connect_args
+)
 
 # A SessionLocal class is a factory for creating new database sessions.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
