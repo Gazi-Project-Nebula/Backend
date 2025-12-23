@@ -1,4 +1,6 @@
-import database
+import pytest
+from src.infrastructure.database import models as database
+from src.infrastructure.repositories.election_repository import SqlAlchemyElectionRepository
 
 def test_create_election(client, auth_header, monkeypatch):
     election_data = {
@@ -27,7 +29,6 @@ def test_create_election_unauthorized(client):
 
 import time
 from datetime import datetime, timedelta, timezone
-import crud
 
 def test_election_status_change(client, auth_header, db_session):
     # Using a fixed time in the past to avoid race conditions with the scheduler
@@ -54,8 +55,9 @@ def test_election_status_change(client, auth_header, db_session):
     assert response.status_code == 200
     assert response.json()["status"] == "pending"
 
-    # Manually start the election by calling the crud function
-    crud.start_election(db_session, election_id=election_id)
+    # Manually start the election by calling the repository function
+    repo = SqlAlchemyElectionRepository(db_session)
+    repo.start_election(election_id=election_id)
 
     # Check for "active" status
     response = client.get(f"/api/elections/{election_id}")
@@ -63,7 +65,7 @@ def test_election_status_change(client, auth_header, db_session):
     assert response.json()["status"] == "active"
 
     # Manually end the election
-    crud.end_election(db_session, election_id=election_id)
+    repo.end_election(election_id=election_id)
 
     # Check for "completed" status
     response = client.get(f"/api/elections/{election_id}")

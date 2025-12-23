@@ -1,30 +1,35 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Response
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from datetime import timedelta, datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
-from typing import List
 
-import crud, schemas, security, database
-from config import settings
+# Imports from new structure
+from src.infrastructure.database.session import engine, SessionLocal
+from src.infrastructure.database.models import Base
+from src.infrastructure.repositories.election_repository import SqlAlchemyElectionRepository
+from src.presentation.api.v1 import auth_router, election_router, vote_router
 
-# Create database tables when the application starts
-database.create_db_and_tables()
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 # --- SCHEDULER ---
 scheduler = BackgroundScheduler()
 
 def trigger_start_election(election_id: int):
-    db = database.SessionLocal()
-    crud.start_election(db, election_id)
-    db.close()
+    db = SessionLocal()
+    try:
+        repo = SqlAlchemyElectionRepository(db)
+        repo.start_election(election_id)
+    finally:
+        db.close()
 
 def trigger_end_election(election_id: int):
-    db = database.SessionLocal()
-    crud.end_election(db, election_id)
-    db.close()
+    db = SessionLocal()
+    try:
+        repo = SqlAlchemyElectionRepository(db)
+        repo.end_election(election_id)
+    finally:
+        db.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,10 +41,12 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 app = FastAPI(lifespan=lifespan)
+
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -48,263 +55,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Endpoint to create a new user 
-@app.post("/users/", response_model=schemas.User)
-def create_user(user: schemas.UserCreate, db: Session = Depends(security.get_db)):
-    db_user = crud.get_user_by_username(db, username=user.username)
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    return crud.create_user(db=db, user=user)
+# Include Routers
+app.include_router(auth_router.router)
+app.include_router(election_router.router)
+app.include_router(vote_router.router)
 
-# Endpoint to log in a user and get an access token
-@app.post("/token", response_model=schemas.Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(security.get_db)):
-    user = crud.get_user_by_username(db, username=form_data.username)
-    if not user or not security.verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-# NEW Endpoint: Login per requirements
-# Authenticates a user and returns the User object
-@app.post("/api/auth/login", response_model=schemas.User)
-def login(user_credentials: schemas.UserLogin, db: Session = Depends(security.get_db)):
-    user = crud.get_user_by_username(db, username=user_credentials.username)
-    if not user or not security.verify_password(user_credentials.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password"
-        )
-    return user
-
-# NEW Endpoint: Register per requirements
-@app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
-def register(user: schemas.UserCreate, db: Session = Depends(security.get_db)):
-    db_user = crud.get_user_by_username(db, username=user.username)
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    user.role = "voter" # Force default role to voter
-    crud.create_user(db=db, user=user)
-    return Response(status_code=status.HTTP_201_CREATED)
-
-# A protected endpoint that shows information about the current logged-in user.
-@app.get("/users/me/", response_model=schemas.User)
-async def read_users_me(current_user: schemas.User = Depends(security.get_current_user)):
-    return current_user
-
-
-@app.get("/api/users", response_model=List[schemas.User])
-def read_users(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(security.get_db),
-    current_user: schemas.User = Depends(security.verify_admin_user),
-):
-    users = crud.get_users(db, skip=skip, limit=limit)
-    return users
-
-
-@app.put("/api/users/{user_id}/role", response_model=schemas.User)
-def update_user_role(
-    user_id: int,
-    user_role: schemas.UserRoleUpdate,
-    db: Session = Depends(security.get_db),
-    current_user: schemas.User = Depends(security.verify_admin_user),
-):
-    db_user = crud.get_user(db, user_id=user_id)
-    if db_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return crud.update_user_role(db=db, user_id=user_id, role=user_role.role)
-
-
-@app.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(
-    user_id: int,
-    db: Session = Depends(security.get_db),
-    current_user: schemas.User = Depends(security.verify_admin_user),
-):
-    db_user = crud.get_user(db, user_id=user_id)
-    if db_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    crud.delete_user(db=db, user_id=user_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-# Endpoint to create a new election
-@app.post("/api/elections", status_code=status.HTTP_201_CREATED)
-def create_election(
-    election_request: schemas.ElectionCreateRequest, 
-    db: Session = Depends(security.get_db), 
-    current_user: schemas.User = Depends(security.get_current_user)
-):
-    # Map the request to the internal schema expected by CRUD
-    candidate_objects = [schemas.CandidateCreate(name=name) for name in election_request.candidate_names]
-    
-    internal_election = schemas.ElectionCreate(
-        title=election_request.title,
-        description=election_request.description,
-        start_time=datetime.now(timezone.utc), # Default start time to now
-        end_time=election_request.end_time,
-        candidates=candidate_objects
-    )
-
-    db_election = crud.create_election(db=db, election=internal_election, user_id=current_user.id)
-    
-    if db_election.start_time and db_election.end_time:
-        scheduler.add_job(trigger_start_election, 'date', run_date=db_election.start_time, args=[db_election.id])
-        scheduler.add_job(trigger_end_election, 'date', run_date=db_election.end_time, args=[db_election.id])
-        
-    return {"success": True, "message": "Election created and tokens distributed to all users."}
-
-# NEW Endpoint: Get All Elections
-@app.get("/api/elections", response_model=List[schemas.Election])
-def read_elections(skip: int = 0, limit: int = 100, db: Session = Depends(security.get_db)):
-    return crud.get_elections(db, skip=skip, limit=limit)
-
-
-@app.put("/api/elections/{election_id}", response_model=schemas.Election)
-def update_election(
-    election_id: int,
-    election: schemas.ElectionUpdate,
-    db: Session = Depends(security.get_db),
-    current_user: schemas.User = Depends(security.verify_admin_user),
-):
-    db_election = crud.get_election(db, election_id=election_id)
-    if db_election is None:
-        raise HTTPException(status_code=404, detail="Election not found")
-    return crud.update_election(db=db, election_id=election_id, election=election)
-
-
-@app.delete("/api/elections/{election_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_election(
-    election_id: int,
-    db: Session = Depends(security.get_db),
-    current_user: schemas.User = Depends(security.verify_admin_user),
-):
-    db_election = crud.get_election(db, election_id=election_id)
-    if db_election is None:
-        raise HTTPException(status_code=404, detail="Election not found")
-    crud.delete_election(db=db, election_id=election_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@app.get("/api/elections/{election_id}", response_model=schemas.Election)
-def read_election(election_id: int, db: Session = Depends(security.get_db)):
-    db_election = crud.get_election(db, election_id=election_id)
-    if db_election is None:
-        raise HTTPException(status_code=404, detail="Election not found")
-    return db_election
-
-# --- Candidate Management Endpoints ---
-
-@app.post("/elections/{election_id}/candidates", response_model=schemas.Candidate)
-def create_candidate_for_election(
-    election_id: int,
-    candidate: schemas.CandidateCreate,
-    db: Session = Depends(security.get_db),
-    election: database.Election = Depends(security.verify_election_manager)
-):
-    return crud.create_candidate(db=db, candidate=candidate, election_id=election_id)
-
-@app.get("/elections/{election_id}/candidates", response_model=List[schemas.Candidate])
-def read_candidates_for_election(
-    election_id: int, 
-    db: Session = Depends(security.get_db),
-    current_user: schemas.User = Depends(security.get_current_user)
-):
-    return crud.get_candidates_by_election(db=db, election_id=election_id)
-
-@app.put("/candidates/{candidate_id}", response_model=schemas.Candidate)
-def update_candidate_details(
-    candidate_id: int,
-    candidate_update: schemas.CandidateUpdate,
-    db: Session = Depends(security.get_db),
-    candidate: database.Candidate = Depends(security.verify_candidate_election_manager)
-):
-    return crud.update_candidate(db=db, candidate_id=candidate_id, candidate=candidate_update)
-
-@app.delete("/candidates/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_candidate_from_election(
-    candidate_id: int,
-    db: Session = Depends(security.get_db),
-    candidate: database.Candidate = Depends(security.verify_candidate_election_manager)
-):
-    crud.delete_candidate(db=db, candidate_id=candidate_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-# 1. Add this NEW endpoint to generate tokens
-@app.post("/elections/{election_id}/token")
-def generate_voting_token(election_id: int, db: Session = Depends(security.get_db), current_user: schemas.User = Depends(security.get_current_user)):
-    # Verify election exists
-    election = crud.get_election(db, election_id=election_id)
-    if not election:
-        raise HTTPException(status_code=404, detail="Election not found")
-        
-    # Generate token
-    token = crud.create_voting_token(db, user_id=current_user.id, election_id=election_id)
-    
-    if not token:
-        raise HTTPException(status_code=400, detail="You have already generated a voting token for this election.")
-        
-    return {"voting_token": token, "message": "Save this token! You need it to vote."}
-
-# 2. UPDATE the existing /votes/ endpoint to /api/votes
-@app.post("/api/votes", status_code=status.HTTP_200_OK)
-def cast_vote(vote: schemas.VoteCastRequest, db: Session = Depends(security.get_db)):
-    # Check if election is active
-    election = crud.get_election(db, election_id=vote.election_id)
-    if not election or election.status != "active":
-        raise HTTPException(status_code=400, detail="Election is not active")
-
-    try:
-        # The crud.cast_vote function now handles token validation
-        db_vote = crud.cast_vote(db=db, vote=vote)
-    except ValueError as e:
-        # Catch errors like "Invalid token" or "Already used"
-        raise HTTPException(status_code=400, detail=str(e))
-    
-    return {
-        "success": True,
-        "message": "Vote successfully cast.",
-        "vote_hash": db_vote.vote_hash
-    }
-
-# The main welcome endpoint.
+# Root endpoint
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Secure E-Voting API"}
-
-# NEW Endpoint: Get Election Results
-@app.get("/api/elections/{election_id}/results", response_model=schemas.ElectionResult)
-def get_election_results(
-    election_id: int, 
-    db: Session = Depends(security.get_db),
-    current_user: schemas.User = Depends(security.get_current_user)
-):
-    # 1. Fetch the election
-    db_election = crud.get_election(db, election_id=election_id)
-    if not db_election:
-        raise HTTPException(status_code=404, detail="Election not found")
-
-    # 2. Check if the election is completed
-    # if db_election.status != "completed":
-    #     raise HTTPException(status_code=400, detail="Election results are not yet available.")
-
-    # 3. Calculate results
-    results = crud.get_election_results(db, election_id=election_id)
-    
-    # 4. Format the final response
-    return schemas.ElectionResult(
-        id=db_election.id,
-        title=db_election.title,
-        status=db_election.status,
-        results=[schemas.CandidateResult(id=r['id'], name=r['name'], vote_count=r['vote_count']) for r in results]
-    )
+    return {"message": "Welcome to the Secure E-Voting API (Refactored)"}

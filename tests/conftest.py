@@ -1,10 +1,16 @@
 import pytest
+import sys
+import os
+
+# Add the parent directory (Backend) to sys.path so we can import 'main' and 'src'
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import main
-from database import Base
-from security import get_db
+from src.infrastructure.database.models import Base
+from src.infrastructure.database.session import get_db
 from apscheduler.schedulers.background import BackgroundScheduler
 
 @pytest.fixture(scope="session")
