@@ -23,7 +23,7 @@ The project follows a **Modular Monolith** approach using **Clean Architecture**
     *   Implements the interfaces defined in the Domain layer.
     *   Handles Database (SQLAlchemy), Security (JWT, Hashing), and other external tools.
     *   **Dependencies:** Application & Domain layers.
-    *   *Example:* `SqlAlchemyElectionRepository`, `database/models.py`.
+    *   *Example:* `SqlAlchemyElectionRepository`, `database/models.py`, `database/seeder.py`.
 
 4.  **Presentation (`src/presentation/`)** - *Entry Point*
     *   Handles HTTP requests (FastAPI Routers) and Dependency Injection wiring.
@@ -40,6 +40,7 @@ The project follows a **Modular Monolith** approach using **Clean Architecture**
 *   **Tamper-Evident Logic:** Votes are linked via a hash chain (Blockchain concept), ensuring historical integrity.
 *   **Automated Scheduling:** Background jobs (APScheduler) to automatically open/close elections.
 *   **Real-time Results:** Instant calculation of election results.
+*   **Automated Seeding:** The application automatically populates the database with rich mock data (50+ users, 10+ varied elections) on startup if the database is empty.
 
 ## 🛠 Tech Stack
 
@@ -78,7 +79,7 @@ pip install -r requirements.txt
 Ensure you have a `.env` file in the `Backend` root directory:
 
 ```ini
-DATABASE_URL= databaseurlgoeshere
+DATABASE_URL=sqlite:///./test.db
 SECRET_KEY=your_super_secret_key_change_this
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -98,6 +99,12 @@ The API will be available at: `http://127.0.0.1:8000`
 
 ### API Documentation (Swagger UI)
 Visit `http://127.0.0.1:8000/docs` to explore the interactive API documentation.
+
+### Automated Seeding
+On the first run, the system will detect an empty database and automatically seed it with:
+*   **Admins:** `admin`, `moderator` (Password: `password123`)
+*   **Voters:** `alice`, `bob`, ... and up to 50 generated users (Password: `password123`)
+*   **Elections:** Diverse set of elections (Active, Pending, Completed).
 
 ---
 
