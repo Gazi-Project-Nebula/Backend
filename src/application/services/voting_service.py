@@ -2,14 +2,15 @@ from typing import Optional
 import hashlib
 import datetime
 import secrets
-from src.domain.interfaces import IVoteRepository, IVotingTokenRepository
+from src.domain.interfaces import IVoteRepository, IVotingTokenRepository, IElectionRepository
 from src.infrastructure.database.models import Vote, VotingToken
 from src.application import schemas
 
 class VotingService:
-    def __init__(self, vote_repo: IVoteRepository, token_repo: IVotingTokenRepository):
+    def __init__(self, vote_repo: IVoteRepository, token_repo: IVotingTokenRepository, election_repo: IElectionRepository):
         self.vote_repo = vote_repo
         self.token_repo = token_repo
+        self.election_repo = election_repo
 
     def generate_token(self, user_id: int, election_id: int):
         existing_token = self.token_repo.get_token(user_id, election_id)
@@ -28,6 +29,13 @@ class VotingService:
         return raw_token
 
     def cast_vote(self, vote_req: schemas.VoteCastRequest):
+        # 0. Validate Election Status
+        election = self.election_repo.get_by_id(vote_req.election_id)
+        if not election:
+            raise ValueError("Election not found.")
+        if election.status != "active":
+            raise ValueError(f"Election is not active. Current status: {election.status}")
+
         # 1. Validate Token
         db_token = self.token_repo.get_token(vote_req.user_id, vote_req.election_id)
         if not db_token:

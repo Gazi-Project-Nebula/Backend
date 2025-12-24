@@ -72,6 +72,7 @@ class ElectionCreate(ElectionBase):
 class ElectionCreateRequest(BaseModel):
     title: str
     description: Optional[str] = None
+    start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     candidate_names: List[str]
     creator_id: Optional[int] = None

@@ -52,9 +52,10 @@ def get_election_service(
 
 def get_voting_service(
     vote_repo = Depends(get_vote_repository),
-    token_repo = Depends(get_token_repository)
+    token_repo = Depends(get_token_repository),
+    election_repo = Depends(get_election_repository)
 ):
-    return VotingService(vote_repo, token_repo)
+    return VotingService(vote_repo, token_repo, election_repo)
 
 
 # Auth Dependencies

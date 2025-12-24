@@ -1,9 +1,11 @@
 from typing import List
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from src.application import schemas
 from src.application.services.election_service import ElectionService
 from src.presentation.dependencies import get_election_service, get_current_user, verify_admin_user, verify_election_manager
-
+from src.core.scheduler import scheduler
+from src.application.jobs import start_election_job, end_election_job
 router = APIRouter()
 
 @router.post("/api/elections", status_code=status.HTTP_201_CREATED)
@@ -12,34 +14,56 @@ def create_election(
     election_service: ElectionService = Depends(get_election_service), 
     current_user: schemas.User = Depends(get_current_user)
 ):
-    # Mapping request to schema
+    # Candidate nesnelerini hazırla
     candidate_objects = [schemas.CandidateCreate(name=name) for name in election_request.candidate_names]
     
+    # Şu anki zaman (UTC)
+    now = datetime.now(timezone.utc)
+    
+    # Eğer start_time gönderilmediyse "şimdi" kabul et
+    start_time = election_request.start_time if election_request.start_time else now
+
     internal_election = schemas.ElectionCreate(
         title=election_request.title,
         description=election_request.description,
-        # Default start time to now if not provided, though service/model might handle it.
-        # But schema has optional.
-        # Logic in main.py: start_time=datetime.now(timezone.utc)
-        # We can set it here or in service. Service takes schemas.ElectionCreate.
-        start_time=None, # Will need to be handled. main.py did it.
+        start_time=start_time,
         end_time=election_request.end_time,
         candidates=candidate_objects
     )
-    # Actually, main.py did `start_time=datetime.now(...)`.
-    # Let's import datetime
-    from datetime import datetime, timezone
-    internal_election.start_time = datetime.now(timezone.utc)
 
-    # We also need to schedule the start/end jobs. 
-    # Clean Architecture: The service should publish an event or the controller handles the scheduler.
-    # Ideally, infrastructure layer handles scheduling.
-    # For this refactor, I will expose the created election and let the router (which has access to the global scheduler) add the job?
-    # Or inject scheduler into Service? Injecting 'Scheduler' into Service is better.
-    # But Scheduler is in main.py.
-    # I will stick to main.py logic: created, then scheduler adds jobs.
-    
+    # 1. Seçimi veritabanına kaydet (Varsayılan status: 'pending')
     created_election = election_service.create_election(election_data=internal_election, user_id=current_user.id)
+    
+    # 2. BAŞLANGIÇ MANTIĞI (Scheduling vs Immediate)
+    if start_time <= now:
+        # Tarih geldiyse veya geçmişse hemen başlat
+        election_service.start_election(created_election.id)
+        message = "Election created and started immediately."
+    else:
+        # Tarih gelecekteyse job ekle
+        scheduler.add_job(
+            start_election_job, 
+            'date', 
+            run_date=start_time, 
+            args=[created_election.id]
+        )
+        message = f"Election created and scheduled to start at {start_time}."
+
+    # 3. BİTİŞ MANTIĞI (Scheduling)
+    if internal_election.end_time:
+        # Bitiş tarihi geçmişte olamaz, kontrol eklenebilir ama şimdilik job ekliyoruz.
+        scheduler.add_job(
+            end_election_job, 
+            'date', 
+            run_date=internal_election.end_time, 
+            args=[created_election.id]
+        )
+
+    return {
+        "success": True, 
+        "message": message, 
+        "election_id": created_election.id
+    }
     
     # Returning the same response structure as before
     # Scheduler logic will be handled in main.py or we need a way to hook it.

@@ -1,44 +1,28 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
 
 # Imports from new structure
 from src.infrastructure.database.session import engine, SessionLocal
 from src.infrastructure.database.models import Base
-from src.infrastructure.repositories.election_repository import SqlAlchemyElectionRepository
+from src.infrastructure.database.seeder import seed_database  # <--- Import Seeder
 from src.presentation.api.v1 import auth_router, election_router, vote_router
-
+from src.core.scheduler import scheduler
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
 # --- SCHEDULER ---
-scheduler = BackgroundScheduler()
 
-def trigger_start_election(election_id: int):
-    db = SessionLocal()
-    try:
-        repo = SqlAlchemyElectionRepository(db)
-        repo.start_election(election_id)
-    finally:
-        db.close()
-
-def trigger_end_election(election_id: int):
-    db = SessionLocal()
-    try:
-        repo = SqlAlchemyElectionRepository(db)
-        repo.end_election(election_id)
-    finally:
-        db.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup: Scheduler'ı başlat
     if not scheduler.running:
         scheduler.start()
     yield
-    # Shutdown
+    # Shutdown: Scheduler'ı kapat
     scheduler.shutdown()
+
 
 app = FastAPI(lifespan=lifespan)
 
