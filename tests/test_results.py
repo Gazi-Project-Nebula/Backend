@@ -105,13 +105,11 @@ def completed_election_with_votes(db_session, test_user):
     v_repo = SqlAlchemyVoteRepository(db_session)
     
     election_service = ElectionService(e_repo, c_repo, t_repo, u_repo)
-    voting_service = VotingService(v_repo, t_repo)
-    
-    election = election_service.create_election(election_data=election_internal, user_id=test_user.id)
-    
-    # 3. Manually activate and then cast votes
-    election.status = "active"
-    db_session.commit() # Commit status change
+    voting_service = VotingService(v_repo, t_repo, e_repo)
+
+    # 3. Create Election (Active)
+    election = election_service.create_election(election_internal, test_user.id)
+    election_service.start_election(election.id)
 
     candidate_a = election.candidates[0]
     candidate_b = election.candidates[1]

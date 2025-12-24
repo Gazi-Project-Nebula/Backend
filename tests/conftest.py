@@ -48,23 +48,32 @@ def db_session(db_engine):
 def client(db_session):
     """
     Overrides the 'get_db' dependency to use the isolated test database session.
-    It also creates a fresh scheduler for each test. The app's lifespan manager
-    is responsible for starting and stopping it.
+    Also mocks the scheduler to prevent actual job execution.
     """
-    # Monkeypatch the scheduler in the main module for this test run
-    main.scheduler = BackgroundScheduler()
+    from unittest.mock import MagicMock
+    import src.core.scheduler
+    
+    # Mock the scheduler instance
+    mock_scheduler = MagicMock()
+    # Ensure running property is False by default so lifespan startup logic runs if needed,
+    # or just let it be a mock.
+    mock_scheduler.running = False 
+    
+    # Save original to restore after
+    original_scheduler = src.core.scheduler.scheduler
+    src.core.scheduler.scheduler = mock_scheduler
 
     def override_get_db():
         yield db_session
 
     main.app.dependency_overrides[get_db] = override_get_db
     
-    # The TestClient will manage the app's lifespan, which starts and stops the scheduler.
     with TestClient(main.app) as c:
         yield c
     
-    # Cleanup the dependency override
+    # Cleanup
     del main.app.dependency_overrides[get_db]
+    src.core.scheduler.scheduler = original_scheduler
     
 @pytest.fixture
 def auth_header(client):

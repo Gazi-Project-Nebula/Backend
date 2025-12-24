@@ -30,14 +30,37 @@ def test_create_election_unauthorized(client):
 import time
 from datetime import datetime, timedelta, timezone
 
+def test_create_election_immediate_active(client, auth_header, db_session):
+    """
+    Tests that an election created without a start_time (or with start_time <= now)
+    immediately becomes 'active'.
+    """
+    election_data = {
+        "title": "Immediate Election",
+        "description": "Should be active immediately",
+        "candidate_names": ["Flash"]
+    }
+    
+    response = client.post("/api/elections", json=election_data, headers=auth_header)
+    assert response.status_code == 201
+    
+    # Get ID
+    election_id = response.json().get("election_id")
+    
+    # Check status
+    response = client.get(f"/api/elections/{election_id}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "active"
+
 def test_election_status_change(client, auth_header, db_session):
-    # Using a fixed time in the past to avoid race conditions with the scheduler
-    start_time = datetime.now(timezone.utc) - timedelta(minutes=10)
-    end_time = start_time + timedelta(minutes=5)
+    # Use a FUTURE time so the election starts as 'pending'
+    start_time = datetime.now(timezone.utc) + timedelta(minutes=10)
+    end_time = start_time + timedelta(minutes=60)
 
     election_data = {
         "title": "Manual Status Change Test",
         "description": "Testing direct status changes",
+        "start_time": start_time.isoformat(),
         "end_time": end_time.isoformat(),
         "candidate_names": ["Candidate 1"]
     }
@@ -46,9 +69,7 @@ def test_election_status_change(client, auth_header, db_session):
     response = client.post("/api/elections", json=election_data, headers=auth_header)
     assert response.status_code == 201
     
-    # Fetch ID from DB since API doesn't return it anymore
-    election = db_session.query(database.Election).filter(database.Election.title == "Manual Status Change Test").first()
-    election_id = election.id
+    election_id = response.json().get("election_id")
 
     # Check initial status is "pending"
     response = client.get(f"/api/elections/{election_id}")
@@ -71,15 +92,3 @@ def test_election_status_change(client, auth_header, db_session):
     response = client.get(f"/api/elections/{election_id}")
     assert response.status_code == 200
     assert response.json()["status"] == "completed"
-
-def test_create_election_no_schedule(client, auth_header):
-    election_data = {
-        "title": "Unscheduled Election",
-        "description": "This election is not scheduled",
-        "candidate_names": ["Candidate A"]
-    }
-    
-    response = client.post("/api/elections", json=election_data, headers=auth_header)
-    assert response.status_code == 201
-    data = response.json()
-    assert data["success"] is True
