@@ -16,6 +16,10 @@ Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Run Seeder
+    with SessionLocal() as db:
+        seed_database(db)
+
     # Startup: Scheduler'ı başlat
     if not scheduler.running:
         scheduler.start()

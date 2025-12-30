@@ -27,15 +27,7 @@ class SqlAlchemyVotingTokenRepository(IVotingTokenRepository):
 
     def mark_as_used(self, token: VotingToken) -> VotingToken:
         token.is_used = True
-        self.db.add(token) # Add to session, commit should happen in service (Unit of Work) or here.
-        # Ideally, vote cast and token usage are atomic. 
-        # For this refactor, I will allow commit here but the service should ideally wrap this.
-        # But wait, cast_vote in crud.py did both.
-        # To keep it atomic, the service should handle the session commit.
-        # But my repositories have their own db session passed in.
-        # I will leave the commit out here if I want atomic, but `create_token` commits.
-        # Let's support commit here for simplicity, but in `cast_vote` service, we might need to flush only.
-        # I'll commit here for now.
+        self.db.add(token) 
         self.db.commit()
         return token
 
