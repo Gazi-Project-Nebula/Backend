@@ -65,9 +65,6 @@ def create_election(
         "election_id": created_election.id
     }
     
-    # Returning the same response structure as before
-    # Scheduler logic will be handled in main.py or we need a way to hook it.
-    # I will skip the scheduler hook for a moment and address it in main.py wiring.
     
     return {"success": True, "message": "Election created and tokens distributed to all users.", "election_id": created_election.id}
 
@@ -116,10 +113,7 @@ def create_candidate_for_election(
     election_check = Depends(verify_election_manager)
 ):
     # Logic was in crud.create_candidate. Service doesn't have create_candidate exposed directly but repo has.
-    # I should add create_candidate to ElectionService.
-    # For now, I'll access the repo via service or add method.
-    # Let's add method to Service in the previous step? Too late, file written.
-    # I'll use `election_service.candidate_repo.create`.
+    
     from src.infrastructure.database.models import Candidate
     new_candidate = Candidate(**candidate.model_dump(), election_id=election_id)
     return election_service.candidate_repo.create(new_candidate)

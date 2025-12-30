@@ -77,10 +77,7 @@ def delete_user(
     current_user: schemas.User = Depends(verify_admin_user),
 ):
     user = auth_service.user_repo.get_by_id(user_id) # Using repo directly or add 'get_user' to service. 
-    # Service has delete_user, but we check existence first usually.
-    # Service delete_user does not return status, assumes void.
-    # We should add logic in service to raise error if not found? Or handled here.
-    # Let's rely on service. delete_user in repo finds and deletes.
+  
     if not auth_service.user_repo.get_by_id(user_id):
          raise HTTPException(status_code=404, detail="User not found")
     auth_service.delete_user(user_id)

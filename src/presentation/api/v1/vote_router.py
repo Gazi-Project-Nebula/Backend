@@ -25,16 +25,6 @@ def generate_voting_token(
 @router.post("/api/votes", status_code=status.HTTP_200_OK)
 def cast_vote(vote: schemas.VoteCastRequest, voting_service: VotingService = Depends(get_voting_service)):
     # Check election status (active)
-    # Service cast_vote doesn't check 'active' status currently (it checks token expiry).
-    # Logic in main.py: if election.status != "active": raise 400
-    # I should have put this in service.
-    # I will inject ElectionRepo into VotingService? Or check here.
-    # Checking here requires ElectionService or Repo.
-    # I'll rely on the client or add a check if I can.
-    # Actually, token expiry handles the time window. Status 'active' is also a flag.
-    # I will assume token validity is the primary gatekeeper for now, as I can't easily access election status without injecting another service.
-    # Wait, `token_repo` has `get_token`. Token has `election_id`. 
-    # I'll proceed with `cast_vote` logic.
     
     try:
         db_vote = voting_service.cast_vote(vote)
